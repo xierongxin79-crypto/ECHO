@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECHO</title>
+
+<style>
+:root{
+  --bg:#0e0e0e;
+  --fg:#e8e8e8;
+  --sub:#8a8a8a;
+}
+
+html,body{
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,system-ui;
+}
+
+main{
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:32px;
+}
+
+section{
+  max-width:420px;
+  width:100%;
+}
+
+p{
+  line-height:1.75;
+  font-size:16px;
+  margin:0 0 22px;
+}
+
+.small{
+  color:var(--sub);
+  font-size:13px;
+}
+
+.choice{
+  border:1px solid #222;
+  padding:14px;
+  margin-bottom:12px;
+  cursor:pointer;
+}
+
+.choice:hover{
+  border-color:#444;
+}
+
+textarea,input{
+  width:100%;
+  background:#000;
+  border:1px solid #222;
+  color:var(--fg);
+  padding:12px;
+  font-size:15px;
+  box-sizing:border-box;
+}
+
+button{
+  margin-top:16px;
+  width:100%;
+  padding:12px;
+  background:#000;
+  color:var(--fg);
+  border:1px solid #333;
+  font-size:15px;
+}
+
+.timeline p{
+  margin-bottom:34px;
+}
+
+hr{
+  border:none;
+  border-top:1px solid #222;
+  margin:26px 0;
+}
+</style>
+</head>
+
+<body>
+<main>
+<section id="app"></section>
+</main>
+
+<script>
+/*
+  ECHO · Final A Version
+  - 停留触发追加（8 秒）
+  - 最多 7 条，自动封存
+  - 不可修改、不可删除
+  - 当前使用 localStorage 演示
+*/
+
+const KEY = "ECHO_DATA";
+const MAX_ENTRIES = 7;
+const HOLD_TIME = 8000; // 8 秒
+
+const app = document.getElementById("app");
+const data = JSON.parse(localStorage.getItem(KEY) || "[]");
+
+let holdTimer = null;
+
+/* ---------- 视图逻辑 ---------- */
+
+function firstView(){
+  app.innerHTML = `
+    <p>你拿着的这个东西，<br>会记得你来过。</p>
+
+    <p class="small">
+      如果你愿意，<br>
+      可以停留一会儿。
+    </p>
+  `;
+
+  holdTimer = setTimeout(showChoices, HOLD_TIME);
+}
+
+function showChoices(){
+  if(data.length >= MAX_ENTRIES){
+    renderTimeline(true);
+    return;
+  }
+
+  app.innerHTML += `
+    <div class="choice" onclick="writeText()">一句话</div>
+    <div class="choice" onclick="writeDate()">一个日期 + 关键词</div>
+    <p class="small">一旦留下，将无法修改。</p>
+  `;
+}
+
+function writeText(){
+  app.innerHTML = `
+    <textarea id="t" rows="4" placeholder="不超过 50 字"></textarea>
+    <button onclick="saveText()">留下</button>
+  `;
+}
+
+function writeDate(){
+  app.innerHTML = `
+    <input id="d" type="date"><br><br>
+    <input id="k" placeholder="一个词">
+    <button onclick="saveDate()">留下</button>
+  `;
+}
+
+/* ---------- 写入逻辑 ---------- */
+
+function saveText(){
+  const t = document.getElementById("t").value.trim();
+  if(!t) return;
+  appendEntry(new Date().toISOString(), t);
+}
+
+function saveDate(){
+  const d = document.getElementById("d").value;
+  const k = document.getElementById("k").value.trim();
+  if(!d || !k) return;
+  appendEntry(d, k);
+}
+
+function appendEntry(time, text){
+  if(data.length >= MAX_ENTRIES) return;
+
+  data.push({time, text});
+  localStorage.setItem(KEY, JSON.stringify(data));
+
+  saved();
+}
+
+function saved(){
+  app.innerHTML = `<p>它已经记住了。</p>`;
+  setTimeout(()=>renderTimeline(data.length >= MAX_ENTRIES), 2000);
+}
+
+/* ---------- 时间线 ---------- */
+
+function renderTimeline(sealed=false){
+  let html = `<div class="timeline">`;
+
+  data.forEach(i=>{
+    html += `
+      <p>
+        <span class="small">${i.time.slice(0,10)}</span><br>
+        ${i.text}
+      </p>
+      <hr>
+    `;
+  });
+
+  if(sealed){
+    html += `
+      <p class="small">它已经记下了这一段时间。</p>
+      <p class="small">不会再继续了。</p>
+    `;
+  }else{
+    html += `<p class="small">这个物件，记得的比你多。</p>`;
+  }
+
+  html += `</div>`;
+  app.innerHTML = html;
+}
+
+/* ---------- 停留检测 ---------- */
+
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden && holdTimer){
+    clearTimeout(holdTimer);
+    holdTimer = null;
+  }
+});
+
+/* ---------- 初始化 ---------- */
+
+if(data.length === 0){
+  firstView();
+}else{
+  renderTimeline(data.length >= MAX_ENTRIES);
+}
+</script>
+</body>
+</html>
