@@ -209,7 +209,7 @@ function renderTimeline(sealed=false){
   app.innerHTML = html;
 }
 
-/* ---------- 停留检测 ---------- */
+/* ----------　 停留检测 　---------- */
 
 document.addEventListener("visibilitychange",()=>{
   if(document.hidden && holdTimer){
