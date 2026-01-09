@@ -1,230 +1,169 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ECHO</title>
 
 <style>
-:root{
-  --bg:#0e0e0e;
-  --fg:#e8e8e8;
-  --sub:#8a8a8a;
-}
+  body {
+    margin: 0;
+    padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0e0e0e;
+    color: #f2f2f2;
+  }
 
-html,body{
-  margin:0;
-  background:var(--bg);
-  color:var(--fg);
-  font-family:-apple-system,BlinkMacSystemFont,system-ui;
-}
+  h1 {
+    font-size: 22px;
+    margin-bottom: 16px;
+  }
 
-main{
-  min-height:100vh;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  padding:32px;
-}
+  textarea {
+    width: 100%;
+    height: 120px;
+    background: #1a1a1a;
+    color: #fff;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 15px;
+    resize: none;
+  }
 
-section{
-  max-width:420px;
-  width:100%;
-}
+  .counter {
+    font-size: 12px;
+    color: #aaa;
+    margin-top: 6px;
+  }
 
-p{
-  line-height:1.75;
-  font-size:16px;
-  margin:0 0 22px;
-}
+  button {
+    margin-top: 16px;
+    padding: 10px 16px;
+    background: #ffffff;
+    color: #000;
+    border: none;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+  }
 
-.small{
-  color:var(--sub);
-  font-size:13px;
-}
+  .entry {
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #333;
+  }
 
-.choice{
-  border:1px solid #222;
-  padding:14px;
-  margin-bottom:12px;
-  cursor:pointer;
-}
+  .time {
+    font-size: 12px;
+    color: #888;
+    margin-top: 4px;
+  }
 
-.choice:hover{
-  border-color:#444;
-}
-
-textarea,input{
-  width:100%;
-  background:#000;
-  border:1px solid #222;
-  color:var(--fg);
-  padding:12px;
-  font-size:15px;
-  box-sizing:border-box;
-}
-
-button{
-  margin-top:16px;
-  width:100%;
-  padding:12px;
-  background:#000;
-  color:var(--fg);
-  border:1px solid #333;
-  font-size:15px;
-}
-
-.timeline p{
-  margin-bottom:34px;
-}
-
-hr{
-  border:none;
-  border-top:1px solid #222;
-  margin:26px 0;
-}
+  .sealed {
+    font-size: 14px;
+    color: #777;
+    margin-top: 24px;
+    text-align: center;
+  }
 </style>
 </head>
 
 <body>
-<main>
-<section id="app"></section>
-</main>
+
+<h1>ECHO</h1>
+
+<div id="inputView" style="display:none;">
+  <textarea id="textInput" maxlength="200" placeholder="写下一段你想留下的回声…"></textarea>
+  <div class="counter">
+    <span id="charCount">0</span> / 200
+  </div>
+  <button onclick="saveEntry()">保存</button>
+</div>
+
+<div id="displayView" style="display:none;">
+  <div id="entries"></div>
+  <div id="sealedHint" class="sealed" style="display:none;">
+    记忆已被写满。
+  </div>
+</div>
 
 <script>
-/*
-  ECHO · Final A Version
-  - 停留触发追加（8 秒）
-  - 最多 7 条，自动封存
-  - 不可修改、不可删除
-  - 当前使用 localStorage 演示
-*/
+const MAX_ENTRIES = 10;
+const STORAGE_KEY = "echo_entries";
 
-const KEY = "ECHO_DATA";
-const MAX_ENTRIES = 7;
-const HOLD_TIME = 8000; // 8 秒
+const inputView = document.getElementById("inputView");
+const displayView = document.getElementById("displayView");
+const textInput = document.getElementById("textInput");
+const charCount = document.getElementById("charCount");
+const entriesDiv = document.getElementById("entries");
+const sealedHint = document.getElementById("sealedHint");
 
-const app = document.getElementById("app");
-const data = JSON.parse(localStorage.getItem(KEY) || "[]");
-
-let holdTimer = null;
-
-/* ---------- 视图逻辑 ---------- */
-
-function firstView(){
-  app.innerHTML = `
-    <p>你拿着的这个东西，<br>会记得你来过。</p>
-
-    <p class="small">
-      如果你愿意，<br>
-      可以停留一会儿。
-    </p>
-  `;
-
-  holdTimer = setTimeout(showChoices, HOLD_TIME);
-}
-
-function showChoices(){
-  if(data.length >= MAX_ENTRIES){
-    renderTimeline(true);
-    return;
-  }
-
-  app.innerHTML += `
-    <div class="choice" onclick="writeText()">一句话</div>
-    <div class="choice" onclick="writeDate()">一个日期 + 关键词</div>
-    <p class="small">一旦留下，将无法修改。</p>
-  `;
-}
-
-function writeText(){
-  app.innerHTML = `
-    <textarea id="t" rows="4" placeholder="不超过 50 字"></textarea>
-    <button onclick="saveText()">留下</button>
-  `;
-}
-
-function writeDate(){
-  app.innerHTML = `
-    <input id="d" type="date"><br><br>
-    <input id="k" placeholder="一个词">
-    <button onclick="saveDate()">留下</button>
-  `;
-}
-
-/* ---------- 写入逻辑 ---------- */
-
-function saveText(){
-  const t = document.getElementById("t").value.trim();
-  if(!t) return;
-  appendEntry(new Date().toISOString(), t);
-}
-
-function saveDate(){
-  const d = document.getElementById("d").value;
-  const k = document.getElementById("k").value.trim();
-  if(!d || !k) return;
-  appendEntry(d, k);
-}
-
-function appendEntry(time, text){
-  if(data.length >= MAX_ENTRIES) return;
-
-  data.push({time, text});
-  localStorage.setItem(KEY, JSON.stringify(data));
-
-  saved();
-}
-
-function saved(){
-  app.innerHTML = `<p>它已经记住了。</p>`;
-  setTimeout(()=>renderTimeline(data.length >= MAX_ENTRIES), 2000);
-}
-
-/* ---------- 时间线 ---------- */
-
-function renderTimeline(sealed=false){
-  let html = `<div class="timeline">`;
-
-  data.forEach(i=>{
-    html += `
-      <p>
-        <span class="small">${i.time.slice(0,10)}</span><br>
-        ${i.text}
-      </p>
-      <hr>
-    `;
-  });
-
-  if(sealed){
-    html += `
-      <p class="small">它已经记下了这一段时间。</p>
-      <p class="small">不会再继续了。</p>
-    `;
-  }else{
-    html += `<p class="small">这个物件，记得的比你多。</p>`;
-  }
-
-  html += `</div>`;
-  app.innerHTML = html;
-}
-
-/* ----------　 停留检测 　---------- */
-
-document.addEventListener("visibilitychange",()=>{
-  if(document.hidden && holdTimer){
-    clearTimeout(holdTimer);
-    holdTimer = null;
-  }
+textInput.addEventListener("input", () => {
+  charCount.textContent = textInput.value.length;
 });
 
-/* ---------- 初始化 ---------- */
-
-if(data.length === 0){
-  firstView();
-}else{
-  renderTimeline(data.length >= MAX_ENTRIES);
+function loadEntries() {
+  const data = localStorage.getItem(STORAGE_KEY);
+  return data ? JSON.parse(data) : [];
 }
+
+function saveEntries(entries) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+
+function renderEntries() {
+  const entries = loadEntries();
+  entriesDiv.innerHTML = "";
+
+  entries.forEach(entry => {
+    const div = document.createElement("div");
+    div.className = "entry";
+    div.innerHTML = `
+      <div>${entry.text}</div>
+      <div class="time">${entry.time}</div>
+    `;
+    entriesDiv.appendChild(div);
+  });
+
+  if (entries.length >= MAX_ENTRIES) {
+    sealedHint.style.display = "block";
+  }
+}
+
+function saveEntry() {
+  const text = textInput.value.trim();
+  if (!text) return;
+
+  let entries = loadEntries();
+  if (entries.length >= MAX_ENTRIES) return;
+
+  const now = new Date();
+  entries.push({
+    text,
+    time: now.toLocaleString()
+  });
+
+  saveEntries(entries);
+  initView();
+}
+
+function initView() {
+  const entries = loadEntries();
+  displayView.style.display = "block";
+  renderEntries();
+
+  if (entries.length < MAX_ENTRIES) {
+    inputView.style.display = "block";
+    textInput.value = "";
+    charCount.textContent = "0";
+  } else {
+    inputView.style.display = "none";
+  }
+}
+
+initView();
 </script>
+
 </body>
 </html>
